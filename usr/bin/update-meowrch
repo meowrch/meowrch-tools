@@ -31,6 +31,20 @@ error() {
 
 # Get current version
 get_current_version() {
+    local base_dir="/usr/local/share/meowrch/users/$(whoami)"
+    
+    # Check for incomplete installation
+    if [[ -f "$base_dir/.installing" ]]; then
+        error "Previous installation was interrupted"
+        error "Please complete or reinstall Meowrch before updating"
+        return 1
+    fi
+    
+    # Integrity check
+    if [[ ! -f "$base_dir/.installed" ]]; then
+        warn "Installation metadata missing - installation may be corrupted"
+    fi
+
     if [[ -f "$VERSION_FILE" ]]; then
         cat "$VERSION_FILE"
     else
