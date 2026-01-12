@@ -284,8 +284,7 @@ run_migration() {
         
         # Performing migration
         if python3 "$migration_file"; then
-            log "✅ Light migration to version $version completed successfully"
-            set_version "$version"
+            :
         else
             error "Light migration to version $version failed"
             rm -rf "$temp_dir"
@@ -381,8 +380,7 @@ run_migration() {
         
         # Выполняем миграцию
         if python3 "migrate_to_$version.py"; then
-            log "✅ Full migration to version $version completed successfully"
-            set_version "$version"
+            :
         else
             error "Full migration to version $version failed"
             cd - > /dev/null
@@ -743,14 +741,7 @@ perform_update() {
         
         # Update the current version for the next iteration
         current_version="$version"
-        log "✅ Successfully updated to $version"
     done
-    
-    if [[ -n "$target_version" ]]; then
-        log "🎉 Successfully updated from $current_version to $target_version"
-    else
-        log "🎉 Successfully updated to latest version $current_version"
-    fi
 }
 
 # Main functionality
