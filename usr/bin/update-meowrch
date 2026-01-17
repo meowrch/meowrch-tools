@@ -62,12 +62,13 @@ get_latest_version_with_migration() {
     local releases
     releases=$(curl -s "$GITHUB_API_URL")
     
-    # Iterate through releases from newest to oldest and find first one with migration file
     for version in $(echo "$releases" | jq -r '.[].tag_name' | sed 's/^v//'); do
         local migration_exists
-        migration_exists=$(echo "$releases" | jq --arg version "v$version" --arg version_no_v "$version" --arg filename "migrate_to_$version.py" '
+        migration_exists=$(echo "$releases" | jq --arg version "v$version" --arg version_no_v "$version" \
+            --arg full_filename "migrate_to_$version.py" \
+            --arg light_filename "migrate_to_${version}_light.py" '
             .[] | select(.tag_name == $version or .tag_name == $version_no_v) | 
-            .assets[] | select(.name == $filename) | .name'
+            .assets[] | select(.name == $full_filename or .name == $light_filename) | .name'
         )
         
         if [[ -n "$migration_exists" ]]; then
@@ -76,9 +77,9 @@ get_latest_version_with_migration() {
         fi
     done
     
-    # If no version with migration found
     return 1
 }
+
 
 # Новая функция для получения всех версий с миграциями, которые новее текущей
 get_versions_with_migrations() {
