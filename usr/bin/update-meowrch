@@ -40,11 +40,6 @@ get_current_version() {
         return 1
     fi
     
-    # Integrity check
-    if [[ ! -f "$base_dir/.installed" ]]; then
-        warn "Installation metadata missing - installation may be corrupted"
-    fi
-
     if [[ -f "$VERSION_FILE" ]]; then
         cat "$VERSION_FILE"
     else
@@ -159,6 +154,7 @@ set_version() {
     local version="$1"
     sudo mkdir -p "$(dirname "$VERSION_FILE")"
     echo "$version" | sudo tee "$VERSION_FILE" > /dev/null
+    sudo chmod 444 "$VERSION_FILE"
     log "✅ Version updated to $version"
 }
 
@@ -284,7 +280,7 @@ run_migration() {
         log "🔄 Executing light migration to version $version..."
         
         # Performing migration
-        if python3 "$migration_file"; then
+        if MEOWRCH_UPDATE_RUNNER=1 python3 "$migration_file"; then
             :
         else
             error "Light migration to version $version failed"
@@ -379,8 +375,8 @@ run_migration() {
             return 1
         }
         
-        # Выполняем миграцию
-        if python3 "migrate_to_$version.py"; then
+        # Performing the migration
+        if MEOWRCH_UPDATE_RUNNER=1 python3 "migrate_to_$version.py"; then
             :
         else
             error "Full migration to version $version failed"
@@ -701,7 +697,26 @@ perform_update() {
     
     local current_version
     current_version=$(get_current_version)
-    
+
+    # Lock file management
+    local lock_file="/tmp/meowrch-update.lock"
+    if [[ -f "$lock_file" ]]; then
+        local existing_pid
+        existing_pid=$(jq -r '.pid' "$lock_file" 2>/dev/null || echo "")
+        if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
+            error "Update is already running (PID: $existing_pid)"
+            return 1
+        fi
+        warn "Stale lock file found, cleaning up"
+        rm -f "$lock_file"
+    fi
+
+    printf '{"pid":%d,"from":"%s","target":"%s","start":"%s"}\n' \
+        "$$" "$current_version" "${target_version:-latest}" "$(date -Iseconds)" \
+        > "$lock_file"
+    trap "rm -f $lock_file" EXIT
+    trap "exit 130" INT TERM
+
     # Getting all versions with migrations from current to target
     local versions_to_update
     versions_to_update=($(get_versions_with_migrations "$current_version" "$target_version"))
@@ -739,8 +754,8 @@ perform_update() {
             error "❌ Migration to $version failed"
             return 1
         fi
-        
-        # Update the current version for the next iteration
+
+        set_version "$version"
         current_version="$version"
     done
 }
